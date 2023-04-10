@@ -344,6 +344,7 @@ class Dongle(object):
         assert length > 0
         if length > 0x3F:
             length = 0x3F
+            LOGGER.warn("Shortening a packet")
 
         # LOGGER.debug("Raw HID packet: %s", bytes_to_hex(s))
         assert len(s) >= length + 1
@@ -383,11 +384,14 @@ class Dongle(object):
             # if s:
             #     LOGGER.info("Incoming buffer: %s", bytes_to_hex(s))
 
+            # Look for the start of the next message, indicated by the magic bytes 0x55AA
             start = s.find(b"\x55\xAA")
             if start == -1:
                 time.sleep(0.1)
                 continue
 
+            # Found the start of the next message, ideally this would be at the beginning of the buffer
+            # but we could be tossing some bad data if a previous parse failed
             s = s[start:]
             LOGGER.debug("Trying to parse: %s", bytes_to_hex(s))
             try:
@@ -395,6 +399,7 @@ class Dongle(object):
                 if not pkt:
                     # Packet was invalid and couldn't be processed, remove the magic bytes and continue
                     # looking for another start of message. This essentially tosses the bad message.
+                    LOGGER.error("Unable to parse message")
                     s = s[2:]
                     time.sleep(0.1)
                     continue
@@ -472,7 +477,7 @@ class Dongle(object):
 
     def _GetSensorR1(self, mac, r1):
         LOGGER.info("Start GetSensorR1...")
-        resp = self._DoSimpleCommand(Packet.GetSensorR1(mac, r1))
+        resp = self._DoSimpleCommand(Packet.GetSensorR1(mac, r1), 10)
         return resp.Payload
 
     def _EnableScan(self):
@@ -510,7 +515,7 @@ class Dongle(object):
                 if ctx.index == ctx.count:
                     e.set()
 
-            self._DoCommand(Packet.GetSensorList(count), cmd_handler, timeout=self._CMD_TIMEOUT)
+            self._DoCommand(Packet.GetSensorList(count), cmd_handler, timeout=10)
         else:
             LOGGER.info("No sensors bond yet...")
         return ctx.sensors
@@ -574,7 +579,7 @@ class Dongle(object):
             self._SetHandler(Packet.NOTIFY_SENSOR_SCAN, old_handler)
         if ctx.result:
             s_mac, s_type, s_ver = ctx.result
-            self._DoSimpleCommand(Packet.VerifySensor(s_mac))
+            self._DoSimpleCommand(Packet.VerifySensor(s_mac), 10)
         return ctx.result
 
     def Delete(self, mac):

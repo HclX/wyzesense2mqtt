@@ -232,7 +232,7 @@ def init_sensors(wait=True):
                 if (valid_sensor_mac(sensor_mac)):
                     if (SENSORS.get(sensor_mac) is None):
                         add_sensor_to_config(sensor_mac, None, None)
-                        LOGGER.warning(f"Linked sensor with mac {event.MAC} automatically added to sensors configuration")
+                        LOGGER.warning(f"Linked sensor with mac {sensor_mac} automatically added to sensors configuration")
                         LOGGER.warning(f"Please update sensor configuration file {os.path.join(CONFIG_PATH, SENSORS_CONFIG_FILE)} restart the service/reload the sensors")
 
                     # If not a configured sensor, then adding it will also add it to the state
@@ -491,8 +491,8 @@ def on_message_scan(MQTT_CLIENT, userdata, msg):
     except TimeoutError:
         pass
 
-    LOGGER.info(f"Scan result: {result}")
     if (result):
+        LOGGER.info(f"Scan result: {result}")
         sensor_mac, sensor_type, sensor_version = result
         if (valid_sensor_mac(sensor_mac)):
             if (SENSORS.get(sensor_mac)) is None:
@@ -546,9 +546,9 @@ def on_event(WYZESENSE_DONGLE, event):
 
     if (valid_sensor_mac(event.MAC)):
         if (event.MAC not in SENSORS):
-            add_sensor_to_config(sensor_mac, None, None)
+            add_sensor_to_config(event.MAC, None, None)
             if(CONFIG['hass_discovery']):
-                send_discovery_topics(sensor_mac)
+                send_discovery_topics(event.MAC)
             LOGGER.warning(f"Linked sensor with mac {event.MAC} automatically added to sensors configuration")
             LOGGER.warning(f"Please update sensor configuration file {os.path.join(CONFIG_PATH, SENSORS_CONFIG_FILE)} restart the service/reload the sensors")
 
@@ -583,7 +583,8 @@ def on_event(WYZESENSE_DONGLE, event):
                 'mac': event.MAC,
                 'signal_strength': sensor_signal,
                 'battery': sensor_battery,
-                'state': sensor_state
+                'state': sensor_state,
+                'last_seen': event.Timestamp.isoformat(),
             }
 
             if (CONFIG['publish_sensor_name']):
@@ -652,21 +653,10 @@ if __name__ == "__main__":
         loop_counter = 0
         while True:
             time.sleep(5)
-            loop_counter += 1
 
             if not MQTT_CLIENT.connected_flag:
                 LOGGER.warning("Reconnecting MQTT...")
                 MQTT_CLIENT.reconnect()
-
-            # Communication with the dongle may go down, if a timeout occurs, try to reopen the dongle
-            if loop_counter > 12:
-                loop_counter = 0
-                try:
-                    WYZESENSE_DONGLE._GetMac()
-                except TimeoutError:
-                    LOGGER.error("Failed to communicate with dongle, reopening...")
-                    WYZESENSE_DONGLE.Stop()
-                    init_wyzesense_dongle()
 
             # Check for availability of the devices
             now = time.time()
