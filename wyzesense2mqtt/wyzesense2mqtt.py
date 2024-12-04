@@ -185,7 +185,7 @@ def init_wyzesense_dongle():
                     f" VER: {WYZESENSE_DONGLE.Version},"
                     f" ENR: {WYZESENSE_DONGLE.ENR}]")
     except IOError as error:
-        LOGGER.warning(f"No device found on path {CONFIG['usb_dongle']}: {str(error)}")
+        LOGGER.error(f"No device found on path {CONFIG['usb_dongle']}: {str(error)}")
 
 
 # Initialize sensor configuration
@@ -293,6 +293,7 @@ def valid_sensor_mac(sensor_mac):
         "\0\0\0\0\0\0\0\0",
         "\x00\x00\x00\x00\x00\x00\x00\x00"
     ]
+
     if ((len(str(sensor_mac)) == 8) and (sensor_mac not in invalid_mac_list)):
         return True
     else:
@@ -301,8 +302,8 @@ def valid_sensor_mac(sensor_mac):
             WYZESENSE_DONGLE.Delete(sensor_mac)
             clear_topics(sensor_mac)
         except TimeoutError:
-            pass
-        return False
+            LOGGER.error("Timeout removing bad mac")
+    return False
 
 
 # Add sensor to config
@@ -337,7 +338,7 @@ def delete_sensor_from_config(sensor_mac):
         write_yaml_file(os.path.join(CONFIG_PATH, SENSORS_CONFIG_FILE), SENSORS)
         del SENSORS_STATE[sensor_mac]
     except KeyError:
-        LOGGER.debug(f"{sensor_mac} not found in SENSORS")
+        LOGGER.error(f"{sensor_mac} not found in SENSORS")
 
 
 # Publish MQTT topic
@@ -501,6 +502,7 @@ def on_message(MQTT_CLIENT, userdata, msg):
 # Process message to scan for new sensors
 def on_message_scan(MQTT_CLIENT, userdata, msg):
     global SENSORS, CONFIG
+    result = None
     LOGGER.info(f"In on_message_scan: {msg.payload.decode()}")
 
     # The scan will do a couple additional calls even after the new sensor is found
@@ -527,8 +529,8 @@ def on_message_scan(MQTT_CLIENT, userdata, msg):
 
 # Process message to remove sensor
 def on_message_remove(MQTT_CLIENT, userdata, msg):
-    LOGGER.info(f"In on_message_remove: {msg.payload.decode()}")
     sensor_mac = msg.payload.decode()
+    LOGGER.info(f"In on_message_remove: {sensor_mac}")
 
     if (valid_sensor_mac(sensor_mac)):
         # Deleting from the dongle may timeout, but we still need to do
@@ -574,9 +576,10 @@ def on_event(WYZESENSE_DONGLE, event):
         # Store last seen time for availability
         SENSORS_STATE[event.MAC]['last_seen'] = event.Timestamp.timestamp()
 
+        mqtt_publish(f"{CONFIG['self_topic_root']}/{event.MAC}/status", "online", is_json=False)
+
         # Set back online if it was offline
         if not SENSORS_STATE[event.MAC]['online']:
-            mqtt_publish(f"{CONFIG['self_topic_root']}/{event.MAC}/status", "online", is_json=False)
             SENSORS_STATE[event.MAC]['online'] = True
             LOGGER.info(f"{event.MAC} is back online!")
 
@@ -591,12 +594,15 @@ def on_event(WYZESENSE_DONGLE, event):
             #     State OFF ^ Inverted = True
             sensor_state = int((sensor_state in STATES_ON) ^ (SENSORS[event.MAC].get('invert_state')))
 
+            # V2 sensors use a single 1.5v battery and reports half the battery level of other sensors with 3v batteries
+            if sensor_type == "switchv2":
+                sensor_battery = sensor_battery * 2
+
             # Adjust battery to max it at 100%
             sensor_battery = 100 if sensor_battery > 100 else sensor_battery
 
             # Negate signal strength to match dbm vs percent
             sensor_signal = sensor_signal * -1
-            
             sensor_signal = min(max(2 * (sensor_signal + 115), 1), 100)
 
             # Build event payload
@@ -644,7 +650,7 @@ if __name__ == "__main__":
     # Initialize logging
     init_logging()
 
-    LOGGER.info("********************************** Wyzesense2mqtt starting **********************************")
+    print("********************************** Wyzesense2mqtt starting **********************************")
 
     # Initialize configuration
     init_config()
@@ -678,6 +684,9 @@ if __name__ == "__main__":
             if not MQTT_CLIENT.connected_flag:
                 LOGGER.warning("Reconnecting MQTT...")
                 MQTT_CLIENT.reconnect()
+
+            if MQTT_CLIENT.connected_flag:
+                mqtt_publish(f"{CONFIG['self_topic_root']}/status", "online", is_json=False)
 
             # Check for availability of the devices
             now = time.time()
