@@ -26,18 +26,10 @@ import sys
 import logging
 import binascii
 import wyzesense
-
+from datetime import datetime
 
 def on_event(ws, e):
-    s = f"[{e.Timestamp.strftime('%Y-%m-%d %H:%M:%S')}][{e.MAC}]"
-    if e.Type == 'state':
-        (s_type, s_state, s_battery, s_signal) = e.Data
-        s += f"StateEvent: sensor_type={s_type}, state={s_state}, " \
-             f"battery={s_battery}, signal={s_signal}"
-    else:
-        s += f"RawEvent: type={e.Type}, data={e.Data}"
-    print(s)
-
+    s = f"[{datetime.fromtimestamp(e.timestamp).strftime('%Y-%m-%d %H:%M:%S')}][{e.mac}]: {e}"
 
 def main(args):
     if args['--debug']:
