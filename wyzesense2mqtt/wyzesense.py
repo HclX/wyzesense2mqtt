@@ -47,8 +47,8 @@ SENSOR_TYPES = {
 }
 
 BINARY_SENSOR_STATES = {
-    SENSOR_TYPE_SWITCH:     ("close", "open"),
-    SENSOR_TYPE_SWITCH_V2:  ("close", "open"),
+    SENSOR_TYPE_SWITCH:     ("closed", "open"),
+    SENSOR_TYPE_SWITCH_V2:  ("closed", "open"),
     SENSOR_TYPE_MOTION:     ("inactive", "active"),
     SENSOR_TYPE_MOTION_V2:  ("inactive", "active"),
     SENSOR_TYPE_LEAK:       ("dry", "wet"),
