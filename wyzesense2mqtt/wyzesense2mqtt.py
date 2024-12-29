@@ -10,6 +10,9 @@ import shutil
 import subprocess
 import yaml
 import time
+import threading
+import queue
+
 from datetime import date
 
 import paho.mqtt.client as mqtt
@@ -77,6 +80,7 @@ _BINARY_SENSORS = (
 
 INITIALIZED = False
 SENSORS = {}
+EVENT_QUEUE = queue.Queue()
 
 # Read data from YAML file
 def read_yaml_file(filename):
@@ -561,8 +565,12 @@ def on_message_reload(MQTT_CLIENT, userdata, msg):
     # We are in a mqtt callback so cannot wait for new messages to publish
     init_sensors(wait=False)
 
-# Process event
+# Sensor event handler
 def on_event(dongle, e):
+    # We will put events into a queue so they are handled in main thread
+    EVENT_QUEUE.put(e)
+
+def handle_sensor_event(e):
     global SENSORS
 
     if not INITIALIZED:
@@ -608,7 +616,6 @@ def on_event(dongle, e):
     LOGGER.info(f"{CONFIG['self_topic_root']}/{e.mac}")
     LOGGER.info(payload)
     mqtt_publish(f"{CONFIG['self_topic_root']}/{e.mac}", payload)
-
 
 def Stop():
     # Stop the dongle first, letting this thread finish anything it might be busy doing, like handling an event
@@ -659,9 +666,19 @@ if __name__ == "__main__":
     # Loop forever until keyboard interrupt or SIGINT
     try:
         while True:
-            time.sleep(5)
             # Check if there is any exceptions in the dongle thread
             WYZESENSE_DONGLE.CheckError()
+
+            # Handling any sensor events until nothing left
+            try:
+                e = EVENT_QUEUE.get(False)
+                handle_sensor_event(e)
+                continue
+            except queue.Empty:
+                pass
+
+            # If no events, throttle the loop 
+            time.sleep(5)
 
             if not MQTT_CLIENT.connected_flag:
                 LOGGER.warning("Reconnecting MQTT...")
