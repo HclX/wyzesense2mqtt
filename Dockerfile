@@ -4,10 +4,10 @@ FROM ${BASE_IMAGE_PREFIX}python:3.8-slim-buster
 
 # see hooks/post_checkout
 ARG ARCH
-COPY qemu-${ARCH}-static /usr/bin
+#COPY qemu-${ARCH}-static /usr/bin
 
 # Begin WyzeSense2MQTT
-LABEL maintainer="Raetha"
+LABEL maintainer="hclx"
 
 COPY wyzesense2mqtt /wyzesense2mqtt/
 
