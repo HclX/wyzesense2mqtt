@@ -712,6 +712,10 @@ class Dongle(object):
         assert ack_mac == mac, "CmdDelSensor: MAC mismatch, requested:%s, returned:%s" % (mac, ack_mac)
         LOGGER.info("CmdDelSensor: %s deleted", mac)
 
+    def SendRaw(self, data):
+        LOGGER.debug("Sending raw data: %s", bytes_to_hex(data))
+        pkt = Packet.Parse(data)
+        self._DoSimpleCommand(pkt)
 
 def Open(device, event_handler, logger):
     global LOGGER
