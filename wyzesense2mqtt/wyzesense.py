@@ -82,7 +82,10 @@ class Packet(object):
     CMD_START_STOP_SCAN = MAKE_CMD(TYPE_ASYNC, 0x1C)
     CMD_GET_SENSOR_R1 = MAKE_CMD(TYPE_ASYNC, 0x21)
     CMD_VERIFY_SENSOR = MAKE_CMD(TYPE_ASYNC, 0x23)
+
     CMD_DEL_SENSOR = MAKE_CMD(TYPE_ASYNC, 0x25)
+    CMD_DEL_ALL_SENSORS = MAKE_CMD(TYPE_ASYNC, 0x3F)
+
     CMD_GET_SENSOR_COUNT = MAKE_CMD(TYPE_ASYNC, 0x2E)
     CMD_GET_SENSOR_LIST = MAKE_CMD(TYPE_ASYNC, 0x30)
 
@@ -226,6 +229,10 @@ class Packet(object):
         assert isinstance(mac, str)
         assert len(mac) == 8
         return cls(cls.CMD_DEL_SENSOR, mac.encode('ascii'))
+
+    @classmethod
+    def DelAllSensor(cls):
+        return cls(cls.CMD_DEL_ALL_SENSOR)
 
     @classmethod
     def GetSensorR1(cls, mac, r):
@@ -708,9 +715,16 @@ class Dongle(object):
         assert len(resp.Payload) == 9
         ack_mac = resp.Payload[:8].decode('ascii')
         ack_code = resp.Payload[8]
-        assert ack_code == 0xFF, "CmdDelSensor: Unexpected ACK code: 0x%02X" % ack_code
-        assert ack_mac == mac, "CmdDelSensor: MAC mismatch, requested:%s, returned:%s" % (mac, ack_mac)
+        assert ack_code == 0xFF, f"CmdDelSensor: Unexpected ACK code: 0x{ack_code:02X}"
+        assert ack_mac == mac, f"CmdDelSensor: MAC mismatch, requested:{mac}, returned:{ack_mac}"
         LOGGER.info("CmdDelSensor: %s deleted", mac)
+
+    def DeleteAll(self):
+        resp = self._DoSimpleCommand(Packet.DelAllSensor())
+        LOGGER.debug("CmdDelSensor returns %s", bytes_to_hex(resp.Payload))
+        assert len(resp.Payload) == 1
+        ack_code = resp.Payload[0]
+        assert ack_code == 0xFF, "CmdDelAllSensor: Unexpected ACK code: 0x%02X" % ack_code
 
     def SendRaw(self, data):
         LOGGER.debug("Sending raw data: %s", bytes_to_hex(data))
