@@ -34,6 +34,7 @@ SENSOR_TYPE_SWITCH      = 0x01
 SENSOR_TYPE_MOTION      = 0x02
 SENSOR_TYPE_LEAK        = 0x03
 SENSOR_TYPE_CLIMATE     = 0x07
+SENSOR_TYPE_CHIME       = 0x0C
 SENSOR_TYPE_SWITCH_V2   = 0x0E
 SENSOR_TYPE_MOTION_V2   = 0x0F
 
@@ -44,6 +45,7 @@ SENSOR_TYPES = {
     SENSOR_TYPE_MOTION_V2: "motionv2",
     SENSOR_TYPE_LEAK:      "leak",
     SENSOR_TYPE_CLIMATE:   "climate",
+    SENSOR_TYPE_CHIME:     "chime",
 }
 
 BINARY_SENSOR_STATES = {
@@ -88,6 +90,12 @@ class Packet(object):
 
     CMD_GET_SENSOR_COUNT = MAKE_CMD(TYPE_ASYNC, 0x2E)
     CMD_GET_SENSOR_LIST = MAKE_CMD(TYPE_ASYNC, 0x30)
+
+    CMD_PLAY_CHIME = MAKE_CMD(TYPE_ASYNC, 0x70)
+    # CMD_PLAY_CHIME_2 = MAKE_CMD(TYPE_ASYNC, 0x47)
+    # aa,55,53,0e,47,37,37,41,38,38,45,39,36,03,02,00,01,03,a8
+    # This command is not supported by the HMS cc1310 firmware, seems to be only
+    # available on doorbell
 
     # Notifications initiated from dongle side
     NOTIFY_SENSOR_ALARM = MAKE_CMD(TYPE_ASYNC, 0x19)
@@ -255,6 +263,20 @@ class Packet(object):
     @classmethod
     def Ch554Upgrade(cls):
         return cls(cls.CMD_SET_CH554_UPGRADE)
+    
+    @classmethod
+    def PlayChime(cls, mac, ringid, repeat_cnt, volume):
+        assert isinstance(mac, str)
+        assert len(mac) == 8
+        assert isinstance(ringid, int)
+        assert ringid >= 0 and ringid <= 0xFF
+        assert isinstance(repeat_cnt, int)
+        assert isinstance(volume, int)
+        if volume < 1:
+            volume = 1
+        if volume > 9:
+            volume = 9
+        return cls(cls.CMD_PLAY_CHIME, mac.encode('ascii') + bytes([ringid, repeat_cnt, volume]))
 
     @classmethod
     def SyncTimeAck(cls):
@@ -725,6 +747,9 @@ class Dongle(object):
         assert len(resp.Payload) == 1
         ack_code = resp.Payload[0]
         assert ack_code == 0xFF, "CmdDelAllSensor: Unexpected ACK code: 0x%02X" % ack_code
+
+    def PlayChime(self, mac, ringid, repeat_cnt, volume):
+        self._DoSimpleCommand(Packet.PlayChime(mac, ringid, repeat_cnt, volume))
 
     def SendRaw(self, data):
         LOGGER.debug("Sending raw data: %s", bytes_to_hex(data))
