@@ -242,7 +242,7 @@ class Packet(object):
 
     @classmethod
     def DelAllSensor(cls):
-        return cls(cls.CMD_DEL_ALL_SENSOR)
+        return cls(cls.CMD_DEL_ALL_SENSORS)
 
     @classmethod
     def GetSensorR1(cls, mac, r):
@@ -318,11 +318,11 @@ class SensorEvent(object):
         _, battery, _, _, state, seq, signal_strength = struct.unpack_from(">BBBBBHB", data)
         if sensor_type not in SENSOR_TYPES:
             LOGGER.warn(f"Unknown sensor type: {sensor_type: 02X}")
-            return cls._UnknownParser(mac, event, timestamp, data)
+            return cls._UnknownParser(mac, event, sensor_type, timestamp, data)
 
         if sensor_type not in BINARY_SENSOR_STATES:
             LOGGER.warn(f"Not expecting {sensor_type} sensor for event {event:02X}")
-            return cls._UnknownParser(mac, event, timestamp, data)
+            return cls._UnknownParser(mac, event, sensor_type, timestamp, data)
 
         return cls(
             "alarm", mac, timestamp,
@@ -335,7 +335,7 @@ class SensorEvent(object):
         _, battery, _, _, state, seq, signal_strength = struct.unpack_from(">BBBBBHB", data)
         if sensor_type not in SENSOR_TYPES:
             LOGGER.warn(f"Unknown sensor type: {sensor_type: 02X}")
-            return cls._UnknownParser(mac, event, timestamp, data)
+            return cls._UnknownParser(mac, event, sensor_type, timestamp, data)
 
         return cls(
             "status", mac, timestamp,
@@ -348,7 +348,7 @@ class SensorEvent(object):
 
         if sensor_type != SENSOR_TYPE_CLIMATE:
             LOGGER.warn(f"Unexpected sensor ({sensor_type:02X}) for event {event:02X}")
-            return cls._UnknownParser(mac, event, timestamp, data)
+            return cls._UnknownParser(mac, event, sensor_type, timestamp, data)
 
         temperature = f"{temp_hi + (temp_lo / 100.0):.2f}"
         return cls(
@@ -364,7 +364,7 @@ class SensorEvent(object):
 
         if sensor_type not in BINARY_SENSOR_STATES:
             LOGGER.warn(f"Not expecting {sensor_type} sensor for event {event:02X}")
-            return cls._UnknownParser(mac, event, timestamp, data)
+            return cls._UnknownParser(mac, event, sensor_type, timestamp, data)
 
         return cls(
             "alarm", mac, timestamp,
@@ -377,7 +377,10 @@ class SensorEvent(object):
 
     @classmethod
     def _UnknownParser(cls, mac, event, sensor_type, timestamp, data):
-        return cls(f"unknown:{event:02X}", mac, timestamp, raw=bytes_to_hex(data))
+        return cls(
+            f"unknown(0x{event:02X})", mac, timestamp,
+            sensor_type=SENSOR_TYPES.get(sensor_type, f'unknown(0x{sensor_type:02X})'),
+            raw=bytes_to_hex(data))
 
     @classmethod
     def Parse(cls, data):
