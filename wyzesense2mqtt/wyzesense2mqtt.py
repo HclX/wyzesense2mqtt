@@ -600,12 +600,12 @@ def clear_topics(sensor_mac, wait=True):
 
         entity_types = ['signal_strength', 'battery']
         if sensor_type in _BINARY_SENSORS:
-            entity_types.add('state')
+            entity_types.append('state')
         else:
             entity_types.extend(['temperature', 'humidity'])
 
         if sensor_type == "leak":
-            entity_types.add('probe_state')
+            entity_types.append('probe_state')
 
         for entity_type in entity_types:
             component = "binary_sensor" if entity_type in ("state", "probe_state") else "sensor"
@@ -745,7 +745,7 @@ def on_event(WYZESENSE_DONGLE, event):
             LOGGER.info(f"{event.mac} is back online!")
 
         if event.event not in ("alarm", "status"):
-            LOGGER.info(f"Unknown event: {e}")
+            LOGGER.info(f"Unknown event: {event.event}")
             return
 
         payload = {}
